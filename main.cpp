@@ -1,38 +1,79 @@
-// Dear ImGui: standalone example application for GLUT/FreeGLUT + OpenGL2, using legacy fixed
-// pipeline
-
-// Learn about Dear ImGui:
-// - FAQ                  https://dearimgui.com/faq
-// - Getting Started      https://dearimgui.com/getting-started
-// - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
-// - Introduction, links and more at the top of imgui.cpp
-
-// !!! GLUT/FreeGLUT IS OBSOLETE PREHISTORIC SOFTWARE. Using GLUT is not recommended unless you
-// really miss the 90's. !!!
-// !!! If someone or something is teaching you GLUT today, you are being abused. Please show some
-// resistance. !!!
-// !!! Nowadays, prefer using GLFW or SDL instead!
-
-// On Windows, you can install Freeglut using vcpkg:
-//   git clone https://github.com/Microsoft/vcpkg
-//   cd vcpkg
-//   bootstrap - vcpkg.bat
-//   vcpkg install freeglut --triplet=x86-windows   ; for win32
-//   vcpkg install freeglut --triplet=x64-windows   ; for win64
-//   vcpkg integrate install                        ; register include and libs in Visual Studio
+#include <array>
+#include <cassert>
+#include <optional>
+#include <vector>
 
 #include "imgui.h"
 #include "imgui_impl_glut.h"
 #include "imgui_impl_opengl2.h"
+
 #define GL_SILENCE_DEPRECATION
 #include <GL/freeglut.h>
 
 namespace {
+
+// Data model
+struct Image {
+    int width;
+    int height;
+    std::vector<uint8_t> raw;
+
+    Image(int w, int h) : width{w}, height{h}, raw(w * h) {}
+
+    inline bool isValid() const { return raw.size() == static_cast<size_t>(width) * height; }
+};
+
+Image
+mockImage() {
+    constexpr int W = 256;
+    Image image{W, W};
+
+    for (int y = 0; y < W; ++y) {
+        for (int x = 0; x < W; ++x) {
+            image.raw[y * W + x] = x + y;
+        }
+    }
+
+    return image;
+}
+
+// View models
+struct Frame2D {
+    int width;
+    int height;
+    GLuint texture;
+
+    Frame2D(const Image im) : width{im.width}, height{im.height}, texture{0} {
+        assert(im.isValid());
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, im.width, im.height, 0,
+        //              GL_RGBA, GL_UNSIGNED_BYTE, im.raw.data());
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, im.width, im.height, 0, GL_RED, GL_UNSIGNED_BYTE,
+                     im.raw.data());
+
+        constexpr std::array<GLint, 4> swizzleMask{GL_RED, GL_RED, GL_RED, GL_ONE};
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask.data());
+    }
+};
+
 // Our state
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 static float f = 0.0f;
 static int counter = 0;
+static std::optional<Frame2D> frame{std::nullopt};
+
+void
+render(Frame2D& frame, float factor = 1.0f) {
+    ImGui::Begin("New image");
+    ImGui::Image(frame.texture, ImVec2(frame.width * factor, frame.height * factor));
+    ImGui::End();
+}
 
 void
 MainLoopStep() {
@@ -53,7 +94,7 @@ MainLoopStep() {
         ImGui::Checkbox("Another Window", &show_another_window);
 
         ImGui::SliderFloat("float", &f, 0.0f,
-                           1.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
+                           10.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
         ImGui::ColorEdit3("clear color",
                           (float*)&clear_color);  // Edit 3 floats representing a color
 
@@ -68,6 +109,10 @@ MainLoopStep() {
         ImGui::End();
     }
 
+    if (frame) {
+        render(*frame, f);
+    }
+
     // 3. Show another simple window.
     if (show_another_window) {
         ImGui::Begin(
@@ -78,6 +123,8 @@ MainLoopStep() {
         if (ImGui::Button("Close Me")) show_another_window = false;
         ImGui::End();
     }
+
+    // ImGui::ShowMetricsWindow();
 
     // Rendering
     ImGui::Render();
@@ -149,6 +196,8 @@ main(int argc, char** argv) {
     // Create GLUT window
     glutInit(&argc, argv);
     GuiRuntime gui_runtime;
+
+    frame = Frame2D{mockImage()};
 
     // Main loop
     glutMainLoop();
