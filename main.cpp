@@ -2,6 +2,7 @@
 #include <cassert>
 #include <optional>
 #include <vector>
+#include <cstdint>
 
 #include "imgui.h"
 #include "imgui_impl_glut.h"
@@ -23,14 +24,14 @@ struct Image {
     inline bool isValid() const { return raw.size() == static_cast<size_t>(width) * height; }
 };
 
-template <int W = 1024>
+template<int W=1024>
 Image
-mockImage() {
+mockImage(const uint8_t offset = 0) {
     Image image{W, W};
 
     for (int y = 0; y < W; ++y) {
         for (int x = 0; x < W; ++x) {
-            image.raw[y * W + x] = x + y;
+            image.raw[y * W + x] = x + y + offset;
         }
     }
 
@@ -43,13 +44,13 @@ struct Frame2D {
     int height;
     GLuint texture;
 
-    Frame2D(const Image im) : width{im.width}, height{im.height}, texture{0} {
+    Frame2D(const Image& im) : width{im.width}, height{im.height}, texture{0} {
         assert(im.isValid());
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
 
         constexpr bool interp_nearest = true;
-        if constexpr (interp_nearest) {
+        if constexpr(interp_nearest) {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         } else {
@@ -57,13 +58,15 @@ struct Frame2D {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
 
-        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, im.width, im.height, 0,
-        //              GL_RGBA, GL_UNSIGNED_BYTE, im.raw.data());
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, im.width, im.height, 0, GL_RED, GL_UNSIGNED_BYTE,
-                     im.raw.data());
+        update(im);
 
         constexpr std::array<GLint, 4> swizzleMask{GL_RED, GL_RED, GL_RED, GL_ONE};
         glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask.data());
+    }
+
+    void update(const Image& im) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, im.width, im.height, 0, GL_RED, GL_UNSIGNED_BYTE,
+                     im.raw.data());
     }
 };
 
@@ -116,6 +119,8 @@ MainLoopStep() {
     }
 
     if (frame) {
+        static uint8_t offset = 0;
+        frame->update(mockImage(++offset));
         render(*frame, f);
     }
 
