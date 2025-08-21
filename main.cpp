@@ -23,9 +23,9 @@ struct Image {
     inline bool isValid() const { return raw.size() == static_cast<size_t>(width) * height; }
 };
 
+template <int W = 1024>
 Image
 mockImage() {
-    constexpr int W = 256;
     Image image{W, W};
 
     for (int y = 0; y < W; ++y) {
@@ -48,8 +48,14 @@ struct Frame2D {
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        constexpr bool interp_nearest = true;
+        if constexpr (interp_nearest) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        } else {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        }
 
         // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, im.width, im.height, 0,
         //              GL_RGBA, GL_UNSIGNED_BYTE, im.raw.data());
@@ -64,7 +70,7 @@ struct Frame2D {
 // Our state
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-static float f = 0.0f;
+static float f = 1.0f;
 static int counter = 0;
 static std::optional<Frame2D> frame{std::nullopt};
 
