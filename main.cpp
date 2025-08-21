@@ -70,12 +70,95 @@ struct Frame2D {
     }
 };
 
+struct Dimensions {
+    int x, y, z;
+
+    constexpr int count() const { return x * y * z; }
+};
+
+struct Voxel {
+    uint8_t r, g, b, a;
+
+    constexpr Voxel(uint8_t v) : r{v}, g{v}, b{v}, a{1} {}
+    constexpr Voxel() : r{0}, g{0}, b{0}, a{0} {}
+};
+static_assert(sizeof(Voxel) == 4);
+
+struct Volume {
+    Dimensions dim;
+    std::vector<Voxel> buffer;
+
+    Volume(Dimensions d) : dim{std::move(d)}, buffer(d.count()) {}
+
+    bool isValid() const { return buffer.size() == static_cast<size_t>(dim.count()); }
+};
+
+template <int W = 128>
+Volume
+mockVolume() {
+    Volume volume{Dimensions{W, W, W}};
+
+    constexpr float R = 40.0f;
+    for (int i = 0; i < W; i++) {
+        for (int j = 0; j < W; j++) {
+            for (int k = 0; k < W; k++) {
+                const auto x = i - W / 2;
+                const auto y = j - W / 2;
+                const auto z = k - W / 2;
+                volume.buffer[i + j + k] = (x * x + y * y + z * z <= R * R) ? Voxel{255} : Voxel{0};
+            }
+        }
+    }
+
+    return volume;
+}
+
+struct Frame3D {
+    Dimensions dim;
+    GLuint texture;
+
+    Frame3D(const Volume& im) : dim{im.dim}, texture{0} {
+        assert(im.isValid());
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_3D, texture);
+
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, 0);
+
+        constexpr bool interp_nearest = true;
+        if constexpr (interp_nearest) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        } else {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        }
+
+#ifdef __sgi
+        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP);
+#else
+        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+#endif
+
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+        const auto [x, y, z] = dim;
+        glTexImage3D(GL_TEXTURE_3D_EXT, 0, GL_RGBA8, x, y, z, 0, GL_RGBA8, GL_UNSIGNED_BYTE,
+                     im.buffer.data());
+    }
+};
+
 // Our state
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 static float f = 1.0f;
 static int counter = 0;
 static std::optional<Frame2D> frame{std::nullopt};
+static std::optional<Frame3D> volume{std::nullopt};
 
 void
 render(Frame2D& frame, float factor = 1.0f) {
@@ -84,11 +167,78 @@ render(Frame2D& frame, float factor = 1.0f) {
     ImGui::End();
 }
 
+struct Orientation {
+    int azimuth;
+    int elevation;
+
+    constexpr void normalize() {
+        azimuth = azimuth % 360;
+        elevation = elevation % 90;
+    }
+};
+
+void
+drawGL3D(const Frame3D& volume, float scale, Orientation o,
+         float quality) { /* volume render using a single 3D texture */
+    glMatrixMode(GL_TEXTURE);
+    glLoadIdentity();
+    glTranslatef(0.5f, 0.5f, 0.5f);
+    glScalef(scale, scale, scale);
+    glRotatef(90, 1, 0, 0);
+
+    o.normalize();
+    glRotatef(o.azimuth, 0, 1, 0);
+    glRotatef(-o.elevation, 1, 0, 0);
+
+    glTranslatef(-0.5f, -0.5f, -0.5f);
+
+    glEnable(GL_TEXTURE_3D);
+    glBindTexture(GL_TEXTURE_3D, volume.texture);
+    const auto [x, y, z] = volume.dim;
+    const auto render_quality = 1.7f * 1.0f / (x + y + z) * quality;
+    for (auto fz = -0.5f; fz <= 0.5f; fz += render_quality) {
+        const float tz = fz + 0.5f;
+        const float vz = (fz * 2.0f) - 0.2;
+
+        glBegin(GL_QUADS);
+        glTexCoord3f(0.0f, 0.0f, tz);
+        glVertex3f(-1.0f, -1.0f, vz);
+        glTexCoord3f(1.0f, 0.0f, tz);
+        glVertex3f(1.0f, -1.0f, vz);
+        glTexCoord3f(1.0f, 1.0f, tz);
+        glVertex3f(1.0f, 1.0f, vz);
+        glTexCoord3f(0.0f, 1.0f, tz);
+        glVertex3f(-1.0f, 1.0f, vz);
+        glEnd();
+    }
+}
+
+struct GLAlphaBlending {
+    GLAlphaBlending(const float threshold = 0.03f) {
+        constexpr bool is_clip_plane = true;
+        if constexpr (is_clip_plane) {
+            glEnable(GL_CLIP_PLANE0);
+        } else {
+            glDisable(GL_CLIP_PLANE0);
+        }
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glAlphaFunc(GL_GREATER, threshold);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+
+    //~GLAlphaBlending() {
+    //    glDisable(GL_BLEND);
+    //}
+};
+
 void
 MainLoopStep() {
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplGLUT_NewFrame();
+
     ImGui::NewFrame();
     ImGuiIO& io = ImGui::GetIO();
 
@@ -119,8 +269,6 @@ MainLoopStep() {
     }
 
     if (frame) {
-        static uint8_t offset = 0;
-        frame->update(mockImage(++offset));
         render(*frame, f);
     }
 
@@ -143,6 +291,11 @@ MainLoopStep() {
     glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w,
                  clear_color.z * clear_color.w, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    if (volume) {
+        GLAlphaBlending alpha_blending;
+        // drawGL3D(*volume, f, Orientation{0, 40}, 0.8f);
+    }
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
     glutSwapBuffers();
@@ -209,6 +362,7 @@ main(int argc, char** argv) {
     GuiRuntime gui_runtime;
 
     frame = Frame2D{mockImage()};
+    volume = Frame3D{mockVolume()};
 
     // Main loop
     glutMainLoop();
