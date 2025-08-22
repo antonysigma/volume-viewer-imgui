@@ -1,5 +1,6 @@
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
@@ -80,7 +81,7 @@ struct Dimensions {
 struct Voxel {
     uint8_t r, g, b, a;
 
-    constexpr Voxel(uint8_t v) : r{v}, g{v}, b{v}, a{1} {}
+    constexpr Voxel(uint8_t v) : r{v}, g{v}, b{v}, a{5} {}
     constexpr Voxel() : r{0}, g{0}, b{0}, a{0} {}
 };
 static_assert(sizeof(Voxel) == 4);
@@ -99,14 +100,18 @@ Volume
 mockVolume() {
     Volume volume{Dimensions{W, W, W}};
 
-    constexpr float R = 40.0f;
+    constexpr float R = W / 3;
     for (int i = 0; i < W; i++) {
         for (int j = 0; j < W; j++) {
             for (int k = 0; k < W; k++) {
-                const auto x = i - W / 2;
-                const auto y = j - W / 2;
-                const auto z = k - W / 2;
-                volume.buffer[i + j + k] = (x * x + y * y + z * z <= R * R) ? Voxel{255} : Voxel{0};
+                const auto x = i - W / 2.0f;
+                const auto y = j - W / 2.0f;
+                const auto z = k - W / 2.0f;
+                // volume.buffer[i + j*W + k*W*W] = (x * x + y * y + z * z <= R * R) ? Voxel{255} :
+                // Voxel{0};
+                const auto abs = [](float v) { return v >= 0 ? v : -v; };
+                volume.buffer[i + j * W + k * W * W] =
+                    (abs(x) + abs(y) + abs(z) <= R) ? Voxel{255} : Voxel{0};
             }
         }
     }
@@ -128,45 +133,24 @@ struct Frame3D {
 
         constexpr bool interp_nearest = true;
         if constexpr (interp_nearest) {
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         } else {
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
 
-#ifdef __sgi
-        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP);
-#else
-        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
-#endif
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
         const auto [x, y, z] = dim;
-        glTexImage3D(GL_TEXTURE_3D_EXT, 0, GL_RGBA8, x, y, z, 0, GL_RGBA8, GL_UNSIGNED_BYTE,
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, x, y, z, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      im.buffer.data());
     }
 };
-
-// Our state
-static bool show_another_window = false;
-static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-static float f = 1.0f;
-static int counter = 0;
-static std::optional<Frame2D> frame{std::nullopt};
-static std::optional<Frame3D> volume{std::nullopt};
-
-void
-render(Frame2D& frame, float factor = 1.0f) {
-    ImGui::Begin("New image");
-    ImGui::Image(frame.texture, ImVec2(frame.width * factor, frame.height * factor));
-    ImGui::End();
-}
 
 struct Orientation {
     int azimuth;
@@ -174,9 +158,26 @@ struct Orientation {
 
     constexpr void normalize() {
         azimuth = azimuth % 360;
-        elevation = elevation % 90;
+        elevation = elevation % 91;
     }
 };
+
+// Our state
+static bool show_another_window = false;
+static ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.00f, 1.00f);
+static float f = 1.0f;
+static int counter = 0;
+static std::optional<Frame2D> frame{std::nullopt};
+static std::optional<Frame3D> volume{std::nullopt};
+static Orientation orientation{};
+static float volume_step_size{1.0f};
+
+void
+render(Frame2D& frame, float factor = 1.0f) {
+    ImGui::Begin("New image");
+    ImGui::Image(frame.texture, ImVec2(frame.width * factor, frame.height * factor));
+    ImGui::End();
+}
 
 void
 drawGL3D(const Frame3D& volume, float scale, Orientation o,
@@ -193,13 +194,14 @@ drawGL3D(const Frame3D& volume, float scale, Orientation o,
 
     glTranslatef(-0.5f, -0.5f, -0.5f);
 
-    glEnable(GL_TEXTURE_3D);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_3D, volume.texture);
+    glEnable(GL_TEXTURE_3D);
     const auto [x, y, z] = volume.dim;
     const auto render_quality = 1.7f * 1.0f / (x + y + z) * quality;
     for (auto fz = -0.5f; fz <= 0.5f; fz += render_quality) {
         const float tz = fz + 0.5f;
-        const float vz = (fz * 2.0f) - 0.2;
+        const float vz = (fz * 2.0f) - 0.2f;
 
         glBegin(GL_QUADS);
         glTexCoord3f(0.0f, 0.0f, tz);
@@ -216,14 +218,14 @@ drawGL3D(const Frame3D& volume, float scale, Orientation o,
 
 struct GLAlphaBlending {
     GLAlphaBlending(const float threshold = 0.03f) {
-        constexpr bool is_clip_plane = true;
+        constexpr bool is_clip_plane = false;
         if constexpr (is_clip_plane) {
             glEnable(GL_CLIP_PLANE0);
         } else {
             glDisable(GL_CLIP_PLANE0);
         }
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glAlphaFunc(GL_GREATER, threshold);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -253,8 +255,13 @@ MainLoopStep(GLFWwindow* window) {
             "This is some useful text.");  // Display some text (you can use a format strings too)
         ImGui::Checkbox("Another Window", &show_another_window);
 
-        ImGui::SliderFloat("float", &f, 0.0f,
-                           10.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
+        ImGui::SliderFloat("Scale", &f, 0.0f, 10.0f);
+
+        constexpr float step_size_min = std::sqrt(0.5f);
+        ImGui::SliderFloat("Step size", &volume_step_size, step_size_min,
+                           5.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
+        ImGui::SliderInt("azimuth", &(orientation.azimuth), 0, 360);
+        ImGui::SliderInt("elevation", &(orientation.elevation), 0, 90);
         ImGui::ColorEdit3("clear color",
                           (float*)&clear_color);  // Edit 3 floats representing a color
 
@@ -293,16 +300,21 @@ MainLoopStep(GLFWwindow* window) {
                  clear_color.z * clear_color.w, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // if (volume) {
-    //     GLAlphaBlending alpha_blending;
-    //     // drawGL3D(*volume, f, Orientation{0, 40}, 0.8f);
-    // }
-    int display_w, display_h;
-    glfwGetFramebufferSize(window, &display_w, &display_h);
-    glViewport(0, 0, display_w, display_h);
-    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w,
-                 clear_color.z * clear_color.w, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
+    {
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+    }
+
+    if (volume) {
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_ALPHA_TEST);
+        GLAlphaBlending alpha_blending;
+        drawGL3D(*volume, f, orientation, volume_step_size);
+
+        orientation.azimuth += 1;
+    }
+
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     glfwSwapBuffers(window);
@@ -348,7 +360,7 @@ struct Window {
     GLFWwindow* fd;
 
     Window()
-        : fd{glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr)} {
+        : fd{glfwCreateWindow(1280, 1280, "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr)} {
         glfwMakeContextCurrent(fd);
         glfwSwapInterval(FPS30);  // Enable vsync
     }
