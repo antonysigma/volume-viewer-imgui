@@ -1,15 +1,16 @@
 #include <array>
 #include <cassert>
+#include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <vector>
-#include <cstdint>
 
 #include "imgui.h"
-#include "imgui_impl_glut.h"
-#include "imgui_impl_opengl2.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 
 #define GL_SILENCE_DEPRECATION
-#include <GL/freeglut.h>
+#include <GLFW/glfw3.h>  // Will drag system OpenGL headers
 
 namespace {
 
@@ -234,10 +235,10 @@ struct GLAlphaBlending {
 };
 
 void
-MainLoopStep() {
+MainLoopStep(GLFWwindow* window) {
     // Start the Dear ImGui frame
-    ImGui_ImplOpenGL2_NewFrame();
-    ImGui_ImplGLUT_NewFrame();
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
 
     ImGui::NewFrame();
     ImGuiIO& io = ImGui::GetIO();
@@ -292,18 +293,25 @@ MainLoopStep() {
                  clear_color.z * clear_color.w, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (volume) {
-        GLAlphaBlending alpha_blending;
-        // drawGL3D(*volume, f, Orientation{0, 40}, 0.8f);
-    }
-    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+    // if (volume) {
+    //     GLAlphaBlending alpha_blending;
+    //     // drawGL3D(*volume, f, Orientation{0, 40}, 0.8f);
+    // }
+    int display_w, display_h;
+    glfwGetFramebufferSize(window, &display_w, &display_h);
+    glViewport(0, 0, display_w, display_h);
+    glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w,
+                 clear_color.z * clear_color.w, clear_color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-    glutSwapBuffers();
-    glutPostRedisplay();
+    glfwSwapBuffers(window);
 }
 
 struct GuiRuntime {
-    GuiRuntime() {
+    GuiRuntime(GLFWwindow* window) {
+        assert(window != nullptr);
+
         // Setup Dear ImGui context
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -311,61 +319,88 @@ struct GuiRuntime {
         (void)io;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
-#ifdef __FREEGLUT_EXT_H__
-        glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
-#endif
-        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE);
-        glutInitWindowSize(1280, 720);
-        glutCreateWindow("Dear ImGui GLUT+OpenGL2 Example");
-
-        // Setup GLUT display function
-        // We will also call ImGui_ImplGLUT_InstallFuncs() to get all the other functions installed
-        // for us, otherwise it is possible to install our own functions and call the
-        // imgui_impl_glut.h functions ourselves.
-        glutDisplayFunc(MainLoopStep);
-
         // Setup Dear ImGui style
         ImGui::StyleColorsDark();
         // ImGui::StyleColorsLight();
 
         // Setup Platform/Renderer backends
-        // FIXME: Consider reworking this example to install our own GLUT funcs + forward calls
-        // ImGui_ImplGLUT_XXX ones, instead of using ImGui_ImplGLUT_InstallFuncs().
-        ImGui_ImplGLUT_Init();
-        ImGui_ImplOpenGL2_Init();
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        constexpr char glsl_version[]{"#version 130"};
+        ImGui_ImplOpenGL3_Init(glsl_version);
+    }
 
-        // Install GLUT handlers (glutReshapeFunc(), glutMotionFunc(), glutPassiveMotionFunc(),
-        // glutMouseFunc(), glutKeyboardFunc() etc.) You can read the io.WantCaptureMouse,
-        // io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+    ~GuiRuntime() {
+        // Cleanup
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+    }
+};
+
+void
+glfw_error_callback(int error, const char* description) {
+    fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+}
+
+enum fps_t { FPS60 = 1, FPS30 = 2 };
+
+struct Window {
+    GLFWwindow* fd;
+
+    Window()
+        : fd{glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr)} {
+        glfwMakeContextCurrent(fd);
+        glfwSwapInterval(FPS30);  // Enable vsync
+    }
+
+    ~Window() {
+        glfwDestroyWindow(fd);
+        glfwTerminate();
+    }
+};
+
+}  // namespace
+
+int
+main() {
+    glfwSetErrorCallback(glfw_error_callback);
+    if (!glfwInit()) {
+        return 1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+
+    // Create window with graphics context
+    Window window;
+    if (window.fd == nullptr) {
+        return 1;
+    }
+
+    GuiRuntime gui_runtime{window.fd};
+
+    frame = Frame2D{mockImage()};
+    volume = Frame3D{mockVolume()};
+
+    // Main loop
+    while (!glfwWindowShouldClose(window.fd)) {
+        // Poll and handle events (inputs, window resize, etc.)
+        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui
+        // wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main
         // application, or clear/overwrite your copy of the mouse data.
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main
         // application, or clear/overwrite your copy of the keyboard data. Generally you may always
         // pass all inputs to dear imgui, and hide them from your application based on those two
         // flags.
-        ImGui_ImplGLUT_InstallFuncs();
+        glfwPollEvents();
+        if (glfwGetWindowAttrib(window.fd, GLFW_ICONIFIED) != 0) {
+            ImGui_ImplGlfw_Sleep(10);
+            continue;
+        }
+
+        MainLoopStep(window.fd);
     }
-
-    ~GuiRuntime() {
-        // Cleanup
-        ImGui_ImplOpenGL2_Shutdown();
-        ImGui_ImplGLUT_Shutdown();
-        ImGui::DestroyContext();
-    }
-};
-}  // namespace
-
-int
-main(int argc, char** argv) {
-    // Create GLUT window
-    glutInit(&argc, argv);
-    GuiRuntime gui_runtime;
-
-    frame = Frame2D{mockImage()};
-    volume = Frame3D{mockVolume()};
-
-    // Main loop
-    glutMainLoop();
 
     return 0;
 }
