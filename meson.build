@@ -1,4 +1,4 @@
-project('imgui-demo', 'cpp',
+project('imgui-demo', 'cpp', 'c',
     version : '0.1',
     default_options : [
         'warning_level=3',
@@ -7,10 +7,17 @@ project('imgui-demo', 'cpp',
         'b_ndebug=if-release',
 ])
 
+data_models_inc = include_directories('.')
+subdir('view_models')
+
 executable('imgui-demo',
     sources: 'main.cpp',
     dependencies: [
+        frame2d_dep,
+        frame3d_dep,
         dependency('glfw3'),
         dependency('imgui'),
     ]
 )
+
+subdir('vx')

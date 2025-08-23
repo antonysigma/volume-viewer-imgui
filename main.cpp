@@ -13,18 +13,18 @@
 #define GL_SILENCE_DEPRECATION
 #include <GLFW/glfw3.h>  // Will drag system OpenGL headers
 
+#include "view_models/frame2d.h"
+#include "view_models/frame3d.h"
+
 namespace {
 
-// Data model
-struct Image {
-    int width;
-    int height;
-    std::vector<uint8_t> raw;
-
-    Image(int w, int h) : width{w}, height{h}, raw(w * h) {}
-
-    inline bool isValid() const { return raw.size() == static_cast<size_t>(width) * height; }
-};
+using view_models::Frame2D;
+using view_models::Frame3D;
+using data_models::Image;
+using data_models::Volume;
+using types::Orientation;
+using types::Dimensions;
+using types::Voxel;
 
 template<int W=1024>
 Image
@@ -39,61 +39,6 @@ mockImage(const uint8_t offset = 0) {
 
     return image;
 }
-
-// View models
-struct Frame2D {
-    int width;
-    int height;
-    GLuint texture;
-
-    Frame2D(const Image& im) : width{im.width}, height{im.height}, texture{0} {
-        assert(im.isValid());
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
-
-        constexpr bool interp_nearest = true;
-        if constexpr(interp_nearest) {
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        } else {
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-
-        update(im);
-
-        constexpr std::array<GLint, 4> swizzleMask{GL_RED, GL_RED, GL_RED, GL_ONE};
-        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask.data());
-    }
-
-    void update(const Image& im) {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, im.width, im.height, 0, GL_RED, GL_UNSIGNED_BYTE,
-                     im.raw.data());
-    }
-};
-
-struct Dimensions {
-    int x, y, z;
-
-    constexpr int count() const { return x * y * z; }
-};
-
-struct Voxel {
-    uint8_t r, g, b, a;
-
-    constexpr Voxel(uint8_t v) : r{v}, g{v}, b{v}, a{5} {}
-    constexpr Voxel() : r{0}, g{0}, b{0}, a{0} {}
-};
-static_assert(sizeof(Voxel) == 4);
-
-struct Volume {
-    Dimensions dim;
-    std::vector<Voxel> buffer;
-
-    Volume(Dimensions d) : dim{std::move(d)}, buffer(d.count()) {}
-
-    bool isValid() const { return buffer.size() == static_cast<size_t>(dim.count()); }
-};
 
 template <int W = 128>
 Volume
@@ -118,49 +63,6 @@ mockVolume() {
 
     return volume;
 }
-
-struct Frame3D {
-    Dimensions dim;
-    GLuint texture;
-
-    Frame3D(const Volume& im) : dim{im.dim}, texture{0} {
-        assert(im.isValid());
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_3D, texture);
-
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_BASE_LEVEL, 0);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, 0);
-
-        constexpr bool interp_nearest = true;
-        if constexpr (interp_nearest) {
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        } else {
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-        const auto [x, y, z] = dim;
-        glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, x, y, z, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                     im.buffer.data());
-    }
-};
-
-struct Orientation {
-    int azimuth;
-    int elevation;
-
-    constexpr void normalize() {
-        azimuth = azimuth % 360;
-        elevation = elevation % 91;
-    }
-};
 
 // Our state
 static bool show_another_window = false;
@@ -309,10 +211,12 @@ MainLoopStep(GLFWwindow* window) {
     if (volume) {
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_ALPHA_TEST);
+        glDisable(GL_LIGHTING);
         GLAlphaBlending alpha_blending;
         drawGL3D(*volume, f, orientation, volume_step_size);
 
         orientation.azimuth += 1;
+        orientation.normalize();
     }
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -391,8 +295,8 @@ main() {
 
     GuiRuntime gui_runtime{window.fd};
 
-    frame = Frame2D{mockImage()};
-    volume = Frame3D{mockVolume()};
+    frame.emplace(mockImage());
+    volume.emplace(mockVolume());
 
     // Main loop
     while (!glfwWindowShouldClose(window.fd)) {
