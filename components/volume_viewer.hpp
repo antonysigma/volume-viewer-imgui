@@ -10,7 +10,7 @@
 namespace {
 
 void
-setGLAlphaBlending(const float threshold = 0.03f) {
+setGLAlphaBlending(const float alpha, const float threshold = 0.03f) {
     constexpr bool is_clip_plane = false;
     if constexpr (is_clip_plane) {
         glEnable(GL_CLIP_PLANE0);
@@ -21,7 +21,12 @@ setGLAlphaBlending(const float threshold = 0.03f) {
     // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glAlphaFunc(GL_GREATER, threshold);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_DST_ALPHA);
+
+    glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+    glBlendColor(1.0f, 1.0f, 1.0f, alpha);
+    glBlendEquation(GL_ADD);
 }
 
 /** volume render using a single 3D texture */
@@ -67,6 +72,7 @@ namespace components {
 
 struct VolumeViewer {
     static inline float volume_step_size{1.0f};
+    static inline float alpha{0.02f};
     static inline types::Orientation orientation{};
     static inline std::optional<view_models::Frame3D> volume{std::nullopt};
 
@@ -79,7 +85,7 @@ struct VolumeViewer {
         // glDisable(GL_DEPTH_TEST);
         // glDisable(GL_ALPHA_TEST);
         glDisable(GL_LIGHTING);
-        setGLAlphaBlending();
+        setGLAlphaBlending(alpha);
         drawGL3D(*volume, scale, orientation, volume_step_size);
     }
 };

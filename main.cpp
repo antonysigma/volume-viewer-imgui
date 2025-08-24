@@ -84,7 +84,15 @@ MainLoopStep(GLFWwindow* window) {
 
         ImGui::Text(
             "This is some useful text.");  // Display some text (you can use a format strings too)
+
         ImGui::SliderFloat("Scale", &view_models::scale, 0.0f, 10.0f);
+        ImGui::SliderFloat("alpha (coarse)", &VolumeViewer::alpha, 0.0f, 0.5f);
+        {
+            const float vmin = std::floor(VolumeViewer::alpha * 10.0f) / 10.0f;
+            const float vmax =
+                std::max(std::ceil(VolumeViewer::alpha * 10.0f) / 10.0f, vmin + 0.1f) - 0.01f;
+            ImGui::SliderFloat("alpha (fine)", &VolumeViewer::alpha, vmin, vmax);
+        }
 
         constexpr float step_size_min = std::sqrt(0.5f);
         ImGui::SliderFloat("Step size", &VolumeViewer::volume_step_size, step_size_min,
