@@ -1,7 +1,8 @@
 #pragma once
+#include <GLFW/glfw3.h>
+
 #include "data_models/types.hpp"
 #include "data_models/volume.hpp"
-#include <GLFW/glfw3.h>
 
 namespace view_models {
 struct Frame3D {
@@ -13,4 +14,4 @@ struct Frame3D {
     Frame3D& operator=(const Frame3D&) = delete;
 };
 
-}
+}  // namespace view_models

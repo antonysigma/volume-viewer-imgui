@@ -1,5 +1,6 @@
 #pragma once
 #include <GLFW/glfw3.h>
+
 #include "data_models/image.hpp"
 
 namespace view_models {
@@ -16,4 +17,4 @@ struct Frame2D {
     void update(const data_models::Image& im);
 };
 
-}
+}  // namespace view_models

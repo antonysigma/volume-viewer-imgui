@@ -24,7 +24,7 @@ struct Orientation {
 
     constexpr void normalize() {
         azimuth = azimuth % 360;
-        elevation = elevation % 91;
+        elevation = (elevation + 90) % 181 - 90;
     }
 };
 

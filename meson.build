@@ -8,7 +8,7 @@ project('imgui-demo', 'cpp', 'c',
 ])
 
 data_models_inc = include_directories('.')
-subdir('view_models')
+subdir('data_models')
 
 executable('imgui-demo',
     sources: 'main.cpp',

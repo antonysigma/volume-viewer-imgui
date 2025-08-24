@@ -4,13 +4,13 @@
 
 namespace data_models {
 struct Image {
-    size_t width;
-    size_t height;
+    int width;
+    int height;
     std::vector<uint8_t> raw;
 
-    Image(size_t w, size_t h) : width{w}, height{h}, raw(w * h) {}
+    Image(int w, int h) : width{w}, height{h}, raw(w * h) {}
 
-    inline bool isValid() const { return raw.size() == width * height; }
+    inline bool isValid() const { return raw.size() == static_cast<size_t>(width) * height; }
 };
 
 }
