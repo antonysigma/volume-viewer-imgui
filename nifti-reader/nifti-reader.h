@@ -1,5 +1,7 @@
 #pragma once
+#include <cstdint>
 #include <utility>
+#include <vector>
 
 #include "data_models/types.hpp"
 
@@ -10,6 +12,10 @@ enum Error {
     INVALID_GZIP_STREAM,
     NOT_LITTLE_ENDIAN,
     NOT_8BIT,
+    NOT_POWER_OF_TWO,
+    IMAGE_IS_COMPRESSED,
+    GZ_SEEK_FAILED,
+    VOXEL_READ_FAILED,
 };
 
 template <typename T, typename U>
@@ -21,7 +27,7 @@ struct Expected {
     constexpr Expected(T&& value) : value{value}, has_error{false} {}
     constexpr Expected(U&& ec) : error_code{ec}, has_error{true} {}
 };
-static_assert(sizeof(Expected<int, Error>) <= 128);
+static_assert(sizeof(Expected<int, Error>) <= 16);
 
 struct nifti_1_header { /* NIFTI-1 usage         */     /* ANALYZE 7.5 field(s) */
     int sizeof_hdr; /*!< MUST be 348           */       /* int sizeof_hdr;      */
@@ -72,6 +78,7 @@ struct nifti_1_header { /* NIFTI-1 usage         */     /* ANALYZE 7.5 field(s) 
 class NiftiReader {
    public:
     nifti_1_header header{};
+    std::vector<uint8_t> raw{};
 
     static Expected<NiftiReader, Error> open(const char filename[]);
     types::Dimensions dimensions() const;
