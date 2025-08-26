@@ -64,7 +64,6 @@ mockVolume() {
 
 // Our state
 static ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.00f, 1.00f);
-static std::optional<Frame2D> frame{std::nullopt};
 
 void
 MainLoopStep(GLFWwindow* window) {
