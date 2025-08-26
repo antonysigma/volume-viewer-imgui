@@ -24,8 +24,10 @@ struct Expected {
     U error_code{};
     bool has_error{true};
 
-    constexpr Expected(T&& value) : value{value}, has_error{false} {}
     constexpr Expected(U&& ec) : error_code{ec}, has_error{true} {}
+
+    template <typename V>
+    constexpr Expected(V&& value) : value{std::forward<V>(value)}, has_error{false} {}
 };
 static_assert(sizeof(Expected<int, Error>) <= 16);
 
@@ -80,8 +82,12 @@ class NiftiReader {
     nifti_1_header header{};
     std::vector<uint8_t> raw{};
 
-    static Expected<NiftiReader, Error> open(const char filename[]);
-    types::Dimensions dimensions() const;
-    types::VoxelSize voxelSize() const;
+    NiftiReader& operator=(const NiftiReader&) = delete;
+    NiftiReader(const NiftiReader&) = delete;
+    NiftiReader(NiftiReader&&) noexcept = default;
+
+    [[nodiscard]] static Expected<NiftiReader, Error> open(const char filename[]);
+    [[nodiscard]] types::Dimensions dimensions() const;
+    [[nodiscard]] types::VoxelSize voxelSize() const;
 };
 }  // namespace storage

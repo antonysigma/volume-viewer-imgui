@@ -62,6 +62,12 @@ mockVolume() {
     return volume;
 }
 
+Volume
+toVolume(storage::NiftiReader file) {
+    const auto dims = file.dimensions();
+    return {dims, std::move(file.raw)};
+}
+
 // Our state
 static ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.00f, 1.00f);
 
@@ -192,7 +198,7 @@ main(int argc, char** argv) {
         return 1;
     }
 
-    const auto file = storage::NiftiReader::open(argv[1]);
+    auto file = storage::NiftiReader::open(argv[1]);
     if (file.has_error) {
         printf("Unable to decode Nifti file; code = %d\n", file.error_code);
         return 1;
@@ -224,7 +230,8 @@ main(int argc, char** argv) {
     GuiRuntime gui_runtime{window.fd};
 
     components::ImageViewer::frame.emplace(mockImage());
-    components::VolumeViewer::volume.emplace(mockVolume());
+    // components::VolumeViewer::volume.emplace(mockVolume());
+    components::VolumeViewer::volume.emplace(toVolume(std::move(file.value)));
 
     // Main loop
     while (!glfwWindowShouldClose(window.fd)) {

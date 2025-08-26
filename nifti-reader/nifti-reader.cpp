@@ -10,7 +10,9 @@ namespace {
 struct GzFileWrapper {
     gzFile fp{};
 
-    GzFileWrapper(const char filename[]) { fp = gzopen(filename, "rb"); }
+    GzFileWrapper(const char filename[]) : fp{gzopen(filename, "rb")} {}
+    GzFileWrapper& operator=(const GzFileWrapper&) = delete;
+    GzFileWrapper(const GzFileWrapper&) = delete;
 
     ~GzFileWrapper() {
         if (fp != nullptr) {
@@ -69,7 +71,7 @@ NiftiReader::open(const char filename[]) {
     // Read the actual payload
     file.raw.resize(n_voxels);
     const auto bytes_read = gzread(fp, file.raw.data(), n_voxels * sizeof(uint8_t));
-    if (bytes_read != n_voxels * sizeof(uint8_t)) {
+    if (bytes_read != static_cast<int>(n_voxels * sizeof(uint8_t))) {
         return VOXEL_READ_FAILED;
     }
 
@@ -87,4 +89,5 @@ NiftiReader::voxelSize() const {
 
     return {normalize(header.pixdim[1]), normalize(header.pixdim[2]), normalize(header.pixdim[3])};
 }
+
 }  // namespace storage
