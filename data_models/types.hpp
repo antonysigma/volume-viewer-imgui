@@ -4,11 +4,18 @@
 
 namespace  types {
 
-struct Dimensions {
-    int x, y, z;
+template <typename T>
+struct Vec3 {
+    T x{};
+    T y{};
+    T z{};
+};
 
+struct Dimensions : Vec3<int> {
     constexpr int count() const { return x * y * z; }
 };
+
+using VoxelSize = Vec3<float>;
 
 struct Voxel {
     uint8_t r, g, b, a;

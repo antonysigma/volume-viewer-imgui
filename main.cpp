@@ -13,6 +13,7 @@
 #include "components/click_counter.hpp"
 #include "components/image_viewer.hpp"
 #include "components/volume_viewer.hpp"
+#include "nifti-reader.h"
 
 namespace {
 
@@ -185,7 +186,27 @@ struct Window {
 }  // namespace
 
 int
-main() {
+main(int argc, char** argv) {
+    if (argc <= 1) {
+        printf("Usage: %s path/to/nifti.nii.gz\n", argv[0]);
+        return 1;
+    }
+
+    const auto file = storage::NiftiReader::open(argv[1]);
+    if (file.has_error) {
+        printf("Unable to decode Nifti file; code = %d\n", file.error_code);
+        return 1;
+    }
+
+    {
+        const auto dims = file.value.dimensions();
+        printf("Volume dimensions (px): %d x %d x %d\n", dims.x, dims.y, dims.z);
+
+        const auto voxel_size = file.value.voxelSize();
+        printf("Voxel dimensions (mm): %0.3g x %0.3g x %0.3g\n", voxel_size.x, voxel_size.y,
+               voxel_size.z);
+    }
+
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit()) {
         return 1;

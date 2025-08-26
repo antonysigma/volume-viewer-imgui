@@ -9,6 +9,7 @@ project('imgui-demo', 'cpp', 'c',
 
 data_models_inc = include_directories('.')
 subdir('data_models')
+subdir('nifti-reader')
 
 executable('imgui-demo',
     sources: 'main.cpp',
@@ -17,6 +18,7 @@ executable('imgui-demo',
         frame3d_dep,
         dependency('glfw3'),
         dependency('imgui'),
+        nifti_reader_dep,
     ]
 )
 
