@@ -31,8 +31,11 @@ Frame3D::Frame3D(const Volume& im) : dim{im.dim}, texture{0} {
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
     const auto [x, y, z] = dim;
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, x, y, z, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 im.buffer.data());
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, x, y, z, 0, GL_RED, GL_UNSIGNED_BYTE, im.buffer.data());
+
+    // In-place conversion from grayscale to RGBA.
+    constexpr std::array<GLint, 4> swizzleMask{GL_RED, GL_RED, GL_RED, GL_ONE};
+    glTexParameteriv(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask.data());
 }
 
 Frame3D::~Frame3D() { glDeleteTextures(1, &texture); }

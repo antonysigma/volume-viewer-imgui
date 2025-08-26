@@ -53,8 +53,7 @@ mockVolume() {
                 // volume.buffer[i + j*W + k*W*W] = (x * x + y * y + z * z <= R * R) ? Voxel{255} :
                 // Voxel{0};
                 const auto abs = [](float v) { return v >= 0 ? v : -v; };
-                volume.buffer[i + j * W + k * W * W] =
-                    (abs(x) + abs(y) + abs(z) <= R) ? Voxel(255) : Voxel(0);
+                volume.buffer[i + j * W + k * W * W] = (abs(x) + abs(y) + abs(z) <= R) ? 255 : 0;
             }
         }
     }

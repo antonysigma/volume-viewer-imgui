@@ -7,7 +7,7 @@ namespace data_models {
 
 struct Volume {
     types::Dimensions dim;
-    std::vector<types::Voxel> buffer;
+    std::vector<uint8_t> buffer;
 
     Volume(types::Dimensions d) : dim{std::move(d)}, buffer(d.count()) {}
 
