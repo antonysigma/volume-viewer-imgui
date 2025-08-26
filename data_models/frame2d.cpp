@@ -26,6 +26,8 @@ Frame2D::Frame2D(const Image im) : width{im.width}, height{im.height}, texture{0
     glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask.data());
 }
 
+Frame2D::~Frame2D() { glDeleteTextures(1, &texture); }
+
 void
 Frame2D::update(const Image& im) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, im.width, im.height, 0, GL_RED, GL_UNSIGNED_BYTE,

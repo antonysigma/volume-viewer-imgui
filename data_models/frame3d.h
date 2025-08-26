@@ -10,6 +10,8 @@ struct Frame3D {
     GLuint texture;
 
     Frame3D(const data_models::Volume& im);
+    ~Frame3D();
+
     Frame3D(const Frame3D&) = delete;
     Frame3D& operator=(const Frame3D&) = delete;
 };

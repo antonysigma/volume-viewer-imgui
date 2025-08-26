@@ -10,6 +10,7 @@ struct Frame2D {
     GLuint texture;
 
     Frame2D(const data_models::Image im);
+    ~Frame2D();
 
     Frame2D(const Frame2D&) = delete;
     Frame2D& operator=(const Frame2D&) = delete;

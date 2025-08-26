@@ -34,4 +34,6 @@ Frame3D::Frame3D(const Volume& im) : dim{im.dim}, texture{0} {
     glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, x, y, z, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                  im.buffer.data());
 }
+
+Frame3D::~Frame3D() { glDeleteTextures(1, &texture); }
 }  // namespace view_models
