@@ -21,5 +21,3 @@ executable('imgui-demo',
         nifti_reader_dep,
     ]
 )
-
-subdir('vx')
