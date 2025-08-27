@@ -1,8 +1,8 @@
 #pragma once
-#include <vector>
 #include <cstdint>
+#include <vector>
 
-namespace  types {
+namespace types {
 
 template <typename T>
 struct Vec3 {
@@ -35,4 +35,4 @@ struct Orientation {
     }
 };
 
-}
+}  // namespace types

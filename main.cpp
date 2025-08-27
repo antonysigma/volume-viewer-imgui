@@ -17,15 +17,15 @@
 
 namespace {
 
-using view_models::Frame2D;
-using view_models::Frame3D;
 using data_models::Image;
 using data_models::Volume;
-using types::Orientation;
 using types::Dimensions;
+using types::Orientation;
 using types::Voxel;
+using view_models::Frame2D;
+using view_models::Frame3D;
 
-template<int W=1024>
+template <int W = 1024>
 Image
 mockImage(const uint8_t offset = 0) {
     Image image{W, W};

@@ -1,6 +1,7 @@
 #pragma once
-#include <vector>
 #include <cstdint>
+#include <vector>
+
 #include "types.hpp"
 
 namespace data_models {
@@ -15,4 +16,4 @@ struct Volume {
     bool isValid() const { return buffer.size() == static_cast<size_t>(dim.count()); }
 };
 
-}
+}  // namespace data_models

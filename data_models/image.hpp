@@ -1,6 +1,6 @@
 #pragma once
-#include <vector>
 #include <cstdint>
+#include <vector>
 
 namespace data_models {
 struct Image {
@@ -13,4 +13,4 @@ struct Image {
     inline bool isValid() const { return raw.size() == static_cast<size_t>(width) * height; }
 };
 
-}
+}  // namespace data_models
