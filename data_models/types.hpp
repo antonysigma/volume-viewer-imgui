@@ -35,4 +35,9 @@ struct Orientation {
     }
 };
 
+enum BlendMode {
+    NORMAL,
+    ATTENUATE,
+    MAX_INTENSITY,
+};
 }  // namespace types

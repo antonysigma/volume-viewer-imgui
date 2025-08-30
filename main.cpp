@@ -84,11 +84,24 @@ MainLoopStep(GLFWwindow* window) {
     // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named
     // window.
     {
-        ImGui::Begin(
-            "Hello, world!");  // Create a window called "Hello, world!" and append into it.
+        ImGui::Begin("Settings");
 
-        ImGui::Text(
-            "This is some useful text.");  // Display some text (you can use a format strings too)
+        ImGui::Text("Blend mode");  // Display some text (you can use a format strings too)
+
+        {
+            using namespace types;
+            constexpr auto radioButton = [&](const char label[], const BlendMode value) {
+                auto& blend_mode = components::VolumeViewer::blend_mode;
+                if (ImGui::RadioButton(label, blend_mode == value)) {
+                    blend_mode = value;
+                }
+            };
+            radioButton("Normal", NORMAL);
+            ImGui::SameLine();
+            radioButton("Attenuate", ATTENUATE);
+            ImGui::SameLine();
+            radioButton("Max intensity", MAX_INTENSITY);
+        }
 
         ImGui::SliderFloat("Scale", &view_models::scale, 0.0f, 10.0f);
         ImGui::SliderFloat("alpha (coarse)", &VolumeViewer::alpha, 0.0f, 0.5f);
