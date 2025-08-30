@@ -64,8 +64,7 @@ mockVolume() {
 
 Volume
 toVolume(storage::NiftiReader file) {
-    const auto dims = file.dimensions();
-    return {dims, std::move(file.raw)};
+    return {file.dimensions(), file.voxelSize(), std::move(file.raw)};
 }
 
 // Our state

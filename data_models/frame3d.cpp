@@ -6,7 +6,7 @@
 using data_models::Volume;
 
 namespace view_models {
-Frame3D::Frame3D(const Volume& im) : dim{im.dim}, texture{0} {
+Frame3D::Frame3D(const Volume& im) : dim{im.dim}, voxel_size{im.voxel_size}, texture{0} {
     assert(im.isValid());
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_3D, texture);

@@ -7,6 +7,7 @@
 namespace view_models {
 struct Frame3D {
     types::Dimensions dim;
+    types::VoxelSize voxel_size;
     GLuint texture;
 
     Frame3D(const data_models::Volume& im);

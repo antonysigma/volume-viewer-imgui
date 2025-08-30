@@ -42,7 +42,11 @@ drawGL3D(const view_models::Frame3D& volume, float scale, types::Orientation o, 
     glMatrixMode(GL_TEXTURE);
     glLoadIdentity();
     glTranslatef(0.5f, 0.5f, 0.5f);
-    glScalef(1.0f / scale, 1.0f / scale, 1.0f / scale);
+    {
+        const auto [dx, dy, dz] = volume.voxel_size;
+        const float vmax = std::max(std::max(dx, dy), dz);
+        glScalef(dx / vmax / scale, dy / vmax / scale, dz / vmax / scale);
+    }
     glRotatef(90, 1, 0, 0);
 
     o.normalize();
